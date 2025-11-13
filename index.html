@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reducción de colores con K-Means en RGB 3D</title>
+  <style>
+    :root{
+      --bg:#0f1220; --panel:#171a2b; --ink:#e6e8f2; --muted:#a5abc6;
+      --brand:#7c5cff; --brand-2:#00e1d6; --danger:#ff5d6c;
+      --card:#12162a; --chip:#222846;
+      --shadow: 0 10px 30px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #1b2040 0%, transparent 60%),
+        radial-gradient(1200px 600px at 110% 110%, #132444 0%, transparent 55%),
+        var(--bg);
+      color:var(--ink);
+    }
+    .wrap{
+      height:100vh;
+      padding:18px;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:18px;
+    }
+    header{
+      grid-column:1/-1;
+      display:flex;
+      align-items:center;
+      gap:14px;
+      background:linear-gradient(90deg,rgba(124,92,255,.18),rgba(0,225,214,.18));
+      border-radius:16px;
+      padding:14px 16px;
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:var(--shadow);
+    }
+    header h1{margin:0; font-size:18px}
+    .badge{
+      padding:4px 10px;
+      border-radius:999px;
+      background:var(--chip);
+      border:1px solid rgba(255,255,255,.08);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .panel{
+      background:var(--panel);
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:var(--shadow);
+    }
+    .left{
+      padding:16px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+    .group{
+      background:var(--card);
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.05);
+      padding:12px;
+    }
+    .group h3{
+      margin:0 0 8px 0;
+      font-size:14px;
+      color:var(--muted);
+      letter-spacing:.2px;
+    }
+    label{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      font-size:14px;
+      margin:8px 0;
+    }
+    input[type="range"]{width:60%}
+    input[type="file"]{width:100%}
+    select{
+      background:#11152b;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,.08);
+      color:var(--ink);
+      padding:4px 6px;
+    }
+    .row{display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;}
+    button{
+      appearance:none;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.08);
+      padding:8px 10px;
+      font-size:13px;
+      font-weight:600;
+      cursor:pointer;
+      background:linear-gradient(180deg,#2a2f52,#1e2346);
+      color:var(--ink);
+      transition:transform .07s, filter .15s;
+    }
+    button.primary{
+      background:linear-gradient(180deg,#7c5cff,#5a3ee6);
+      border-color:#6d54ff;
+    }
+    button.danger{
+      background:linear-gradient(180deg,#ff6b7a,#d94957);
+      border-color:var(--danger);
+    }
+    button:disabled{
+      opacity:.4;
+      cursor:not-allowed;
+    }
+    button:hover:not(:disabled){filter:brightness(1.08)}
+    button:active:not(:disabled){transform:translateY(1px)}
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 9px;
+      border-radius:999px;
+      background:var(--chip);
+      border:1px solid rgba(255,255,255,.08);
+      font-size:11px;
+      color:var(--muted);
+    }
+    .value{font-weight:700; color:var(--ink);}
+    .hint{font-size:12px; color:var(--muted);}
+    .card{
+      background:rgba(14,16,30,.7);
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.08);
+      padding:8px 10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .right{
+      padding:12px;
+      display:grid;
+      grid-template-rows: 1.2fr 1fr 0.7fr;
+      gap:12px;
+    }
+    #scatter{
+      width:100%;
+      height:100%;
+      border-radius:14px;
+      background:#020413;
+      border:1px solid rgba(255,255,255,.06);
+      display:block;
+    }
+    .imagesRow{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+    }
+    .imgPane{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .imgPane canvas{
+      width:100%;
+      height:auto;
+      border-radius:12px;
+      background:#050819;
+      border:1px solid rgba(255,255,255,.06);
+    }
+    .subtitle{font-size:12px; color:var(--muted);}
+    .progress{
+      width:100%;
+      height:8px;
+      background:#242b52;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.05);
+      overflow:hidden;
+    }
+    .progress>div{
+      height:100%;
+      width:0%;
+      background:linear-gradient(90deg,var(--brand),var(--brand-2));
+      transition:width .25s;
+    }
+
+    #palette{
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+      margin-top:6px;
+    }
+    .sw{
+      width:20px;height:20px;
+      border-radius:6px;
+      border:1px solid rgba(255,255,255,.2);
+    }
+
+    .chartPane{
+      background:#050819;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.06);
+      padding:8px 10px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    #sseChart{
+      width:100%;
+      height:100%;
+      border-radius:8px;
+      background:#020413;
+    }
+
+    @media (max-width: 1100px){
+      .imagesRow{grid-template-columns: 1fr 1fr;}
+      .imgPane:nth-child(2){display:none;}
+    }
+    @media (max-width: 900px){
+      .wrap{
+        grid-template-columns:1fr;
+        grid-auto-rows:minmax(100px,auto);
+      }
+      .right{height:70vh;}
+      .imagesRow{grid-template-columns: 1fr;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="badge">K-Means</div>
+      <h1>Reducción de colores en una imagen con k-means (RGB 3D)</h1>
+      <div class="chip">
+        Muestra de colores:
+        <span id="sampleCount" class="value">0</span>
+      </div>
+    </header>
+
+    <aside class="panel left">
+      <div class="group">
+        <h3>1. Carga de imagen</h3>
+        <label>
+          Imagen de entrada
+          <input id="imgFile" type="file" accept="image/*">
+        </label>
+        <label>
+          Escala de procesamiento
+          <input id="imgScale" type="range" min="20" max="100" value="60">
+        </label>
+        <span class="hint">
+          La imagen se redimensiona para procesar más rápido. 60% suele ser suficiente.
+        </span>
+        <div class="row" style="margin-top:8px;">
+          <button id="btnLoad" class="primary">Cargar y extraer colores</button>
+          <button id="btnReset" class="danger">Reiniciar todo</button>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div class="card">Pixeles totales: <span id="pxCount" class="value">—</span></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>2. Parámetros k-means (espacio RGB)</h3>
+        <label>
+          K (número de colores)
+          <input id="k" type="range" min="2" max="32" value="8">
+        </label>
+        <label>
+          Inicialización
+          <select id="init">
+            <option value="kpp">k-means++</option>
+            <option value="random">Aleatoria</option>
+          </select>
+        </label>
+        <label>
+          Velocidad auto (ms)
+          <input id="speed" type="range" min="50" max="1500" value="250">
+        </label>
+        <label>
+          Píxeles a mostrar en 3D
+          <input id="maxScatter" type="range" min="500" max="6000" value="3000">
+        </label>
+      </div>
+
+      <div class="group">
+        <h3>3. Vista 3D del cubo RGB</h3>
+        <label>
+          Rotación X (°)
+          <input id="rotX" type="range" min="-80" max="80" value="20">
+        </label>
+        <label>
+          Rotación Y (°)
+          <input id="rotY" type="range" min="-80" max="80" value="-40">
+        </label>
+        <label>
+          Rotación automática
+          <input id="autoRot" type="checkbox">
+        </label>
+        <span class="hint">
+          Mueve los ángulos o activa la rotación automática para ver la nube de colores y los centroides dentro del cubo RGB.
+        </span>
+      </div>
+
+      <div class="group">
+        <h3>4. Ejecución del algoritmo</h3>
+        <div class="row">
+          <button id="btnInit" disabled>Inicializar centroides</button>
+          <button id="btnAssign" disabled>Paso 1: asignar</button>
+          <button id="btnUpdate" disabled>Paso 2: actualizar</button>
+        </div>
+        <div class="row">
+          <button id="btnAuto" class="primary" disabled>Auto hasta convergencia</button>
+          <button id="btnApply" disabled>Aplicar a la imagen</button>
+        </div>
+        <div class="row">
+          <button id="btnStop" disabled>Detener auto</button>
+          <button id="btnSnapshot" disabled>Guardar versión A (K actual)</button>
+        </div>
+        <div class="progress" style="margin-top:6px;">
+          <div id="progBar"></div>
+        </div>
+        <p class="hint" id="status">
+          1) Carga una imagen. 2) Inicializa centroides. 3) Ejecuta k-means y aplica.
+        </p>
+      </div>
+
+      <div class="group">
+        <h3>5. Métricas & paleta</h3>
+        <div class="row">
+          <div class="card">Iteración: <span id="it" class="value">0</span></div>
+          <div class="card">Inercia (SSE RGB): <span id="sse" class="value">—</span></div>
+          <div class="card">Δ centroides: <span id="shift" class="value">—</span></div>
+        </div>
+        <div class="card" style="margin-top:6px;">
+          Paleta resultante:
+          <div id="palette"></div>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <div class="card">K versión A: <span id="kSnapshotLabel" class="value">—</span></div>
+          <div class="card">K actual aplicado: <span id="kCurrentLabel" class="value">—</span></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Cómo leer la visualización 3D</h3>
+        <ul class="hint" style="margin:0 0 4px 1rem; padding:0; line-height:1.5;">
+          <li>El cubo representa el espacio RGB: R, G y B de 0 a 255.</li>
+          <li>Cada píxel es un punto en el cubo, dibujado con su propio color.</li>
+          <li>k-means agrupa puntos cercanos en este cubo; los centroides son los “colores promedio”.</li>
+          <li>La imagen cuantizada usa sólo esos K colores centroides.</li>
+          <li>Guarda una versión A con un K, cambia K y vuelve a aplicar para comparar imágenes.</li>
+        </ul>
+      </div>
+    </aside>
+
+    <section class="panel right">
+      <canvas id="scatter"></canvas>
+
+      <div class="imagesRow">
+        <div class="imgPane">
+          <div class="subtitle">Imagen original (escalada)</div>
+          <canvas id="imgSrc"></canvas>
+        </div>
+        <div class="imgPane">
+          <div class="subtitle">Versión A (snapshot de K)</div>
+          <canvas id="imgA"></canvas>
+        </div>
+        <div class="imgPane">
+          <div class="subtitle">Imagen con K actual (k-means)</div>
+          <canvas id="imgOut"></canvas>
+        </div>
+      </div>
+
+      <div class="chartPane">
+        <div class="subtitle">Evolución de la inercia (SSE) por iteración</div>
+        <canvas id="sseChart"></canvas>
+      </div>
+    </section>
+  </div>
+
+<script>
+  // ========= Estado global =========
+  const imgFile = document.getElementById('imgFile');
+  const imgScale = document.getElementById('imgScale');
+  const btnLoad = document.getElementById('btnLoad');
+  const btnReset = document.getElementById('btnReset');
+  const pxCountEl = document.getElementById('pxCount');
+  const sampleCountEl = document.getElementById('sampleCount');
+
+  const kSlider = document.getElementById('k');
+  const initSelect = document.getElementById('init');
+  const speedSlider = document.getElementById('speed');
+  const maxScatterSlider = document.getElementById('maxScatter');
+  const rotXSlider = document.getElementById('rotX');
+  const rotYSlider = document.getElementById('rotY');
+  const autoRotChk = document.getElementById('autoRot');
+
+  const btnInit = document.getElementById('btnInit');
+  const btnAssign = document.getElementById('btnAssign');
+  const btnUpdate = document.getElementById('btnUpdate');
+  const btnAuto = document.getElementById('btnAuto');
+  const btnApply = document.getElementById('btnApply');
+  const btnStop = document.getElementById('btnStop');
+  const btnSnapshot = document.getElementById('btnSnapshot');
+
+  const statusEl = document.getElementById('status');
+  const itEl = document.getElementById('it');
+  const sseEl = document.getElementById('sse');
+  const shiftEl = document.getElementById('shift');
+  const progBar = document.getElementById('progBar');
+  const paletteEl = document.getElementById('palette');
+  const kSnapshotLabel = document.getElementById('kSnapshotLabel');
+  const kCurrentLabel = document.getElementById('kCurrentLabel');
+
+  const scatterCanvas = document.getElementById('scatter');
+  const scatterCtx = scatterCanvas.getContext('2d');
+  const imgSrcCanvas = document.getElementById('imgSrc');
+  const imgSrcCtx = imgSrcCanvas.getContext('2d');
+  const imgACanvas = document.getElementById('imgA');
+  const imgACtx = imgACanvas.getContext('2d');
+  const imgOutCanvas = document.getElementById('imgOut');
+  const imgOutCtx = imgOutCanvas.getContext('2d');
+
+  const sseCanvas = document.getElementById('sseChart');
+  const sseCtx = sseCanvas.getContext('2d');
+
+  let DPR = window.devicePixelRatio || 1;
+
+  let imgW = 0, imgH = 0;
+  let colorPoints = null; // {r,g,b,c}
+  let samplePoints = [];
+  let centroids = [];     // {r,g,b}
+  let iter = 0;
+  let lastShift = null;
+  let autoTimer = null;       // auto k-means
+  let autoRotTimer = null;    // auto rotación del cubo
+  let lastAppliedK = null;
+  let snapshotK = null;
+
+  let sseHistory = [];
+
+  // ========= Utilidades =========
+  function setStatus(msg){ statusEl.textContent = msg; }
+
+  function enableKmeansControls(enabled){
+    btnInit.disabled = !enabled;
+    btnAssign.disabled = !enabled;
+    btnUpdate.disabled = !enabled;
+    btnAuto.disabled = !enabled;
+    btnApply.disabled = !enabled;
+    btnStop.disabled = !enabled;
+    btnSnapshot.disabled = !enabled;
+  }
+
+  function resetMetrics(){
+    iter = 0;
+    lastShift = null;
+    itEl.textContent = '0';
+    sseEl.textContent = '—';
+    shiftEl.textContent = '—';
+    progBar.style.width = '0%';
+    paletteEl.innerHTML = '';
+    lastAppliedK = null;
+    kCurrentLabel.textContent = '—';
+    sseHistory = [];
+    drawSSEChart();
+  }
+
+  function randInt(a,b){ return Math.floor(a + Math.random()*(b-a)); }
+
+  // ========= Carga de imagen =========
+  function loadImageAndExtract(){
+    const f = imgFile.files && imgFile.files[0];
+    if(!f){
+      setStatus('Selecciona una imagen primero.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Number(imgScale.value)/100;
+        const w = Math.max(1, Math.floor(img.naturalWidth * scale));
+        const h = Math.max(1, Math.floor(img.naturalHeight * scale));
+        imgW = w; imgH = h;
+
+        imgSrcCanvas.width = w; imgSrcCanvas.height = h;
+        imgACanvas.width = w; imgACanvas.height = h;
+        imgOutCanvas.width = w; imgOutCanvas.height = h;
+        imgSrcCtx.drawImage(img, 0, 0, w, h);
+        imgACtx.clearRect(0,0,w,h);
+        imgOutCtx.clearRect(0,0,w,h);
+        kSnapshotLabel.textContent = '—';
+
+        const imgData = imgSrcCtx.getImageData(0,0,w,h);
+        const d = imgData.data;
+        const totalPixels = w*h;
+        colorPoints = new Array(totalPixels);
+        for(let i=0,j=0;i<d.length;i+=4,j++){
+          colorPoints[j] = { r:d[i], g:d[i+1], b:d[i+2], c:-1 };
+        }
+
+        pxCountEl.textContent = totalPixels.toLocaleString('es');
+        setStatus('Colores extraídos. Ahora inicializa los centroides.');
+        generateScatterSample();
+        drawScatter(false);
+        resetMetrics();
+        centroids = [];
+        enableKmeansControls(true);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(f);
+  }
+
+  function generateScatterSample(){
+    samplePoints = [];
+    if(!colorPoints) return;
+    const total = colorPoints.length;
+    const maxScatter = Number(maxScatterSlider.value);
+    const n = Math.min(maxScatter, total);
+
+    const used = new Set();
+    while(samplePoints.length < n){
+      const idx = randInt(0,total);
+      if(used.has(idx)) continue;
+      used.add(idx);
+      samplePoints.push(colorPoints[idx]);
+    }
+    sampleCountEl.textContent = samplePoints.length.toString();
+  }
+
+  // ========= K-means =========
+  function dist2Rgb(a,b){
+    const dr=a.r-b.r, dg=a.g-b.g, db=a.b-b.b;
+    return dr*dr + dg*dg + db*db;
+  }
+
+  function randomInitRGB(k){
+    if(!colorPoints) return [];
+    const chosen = new Set();
+    const cents = [];
+    while(cents.length < k && chosen.size < colorPoints.length){
+      const idx = randInt(0,colorPoints.length);
+      if(chosen.has(idx)) continue;
+      chosen.add(idx);
+      const p = colorPoints[idx];
+      cents.push({ r:p.r, g:p.g, b:p.b });
+    }
+    return cents;
+  }
+
+  function kmeansPlusPlusRGB(k){
+    if(!colorPoints) return [];
+    const cents = [];
+    cents.push({...colorPoints[randInt(0,colorPoints.length)]});
+    while(cents.length < k){
+      const d2 = colorPoints.map(p => Math.min(...cents.map(c => dist2Rgb(p,c))));
+      const sum = d2.reduce((a,b)=>a+b,0);
+      let r = Math.random()*sum;
+      for(let i=0;i<colorPoints.length;i++){
+        r -= d2[i];
+        if(r <= 0){
+          const p = colorPoints[i];
+          cents.push({r:p.r, g:p.g, b:p.b});
+          break;
+        }
+      }
+      if(cents.length === 1) break;
+    }
+    return cents;
+  }
+
+  function initCentroids(){
+    if(!colorPoints){
+      setStatus('Carga una imagen primero.');
+      return;
+    }
+    const K = Number(kSlider.value);
+    centroids = (initSelect.value === 'kpp')
+      ? kmeansPlusPlusRGB(K)
+      : randomInitRGB(K);
+
+    resetMetrics();
+    setStatus(`Centroides inicializados (${initSelect.value === 'kpp' ? 'k-means++' : 'aleatorio'}).`);
+    drawScatter(true);
+  }
+
+  function assignStep(){
+    if(!centroids.length){
+      setStatus('Primero inicializa los centroides.');
+      return;
+    }
+    for(const p of colorPoints){
+      let best = -1, bestd = Infinity;
+      for(let i=0;i<centroids.length;i++){
+        const d = dist2Rgb(p, centroids[i]);
+        if(d < bestd){ bestd = d; best = i; }
+      }
+      p.c = best;
+    }
+    iter++;
+    lastShift = null;
+    updateMetrics();
+    setStatus('Paso 1: cada color se asignó al centroide más cercano.');
+    drawScatter(true);
+  }
+
+  function updateCentroids(){
+    if(!centroids.length){
+      setStatus('Primero inicializa y asigna los puntos.');
+      return 0;
+    }
+    const K = centroids.length;
+    const sums = Array.from({length:K}, () => ({r:0,g:0,b:0,n:0}));
+    for(const p of colorPoints){
+      if(p.c >= 0){
+        sums[p.c].r += p.r;
+        sums[p.c].g += p.g;
+        sums[p.c].b += p.b;
+        sums[p.c].n++;
+      }
+    }
+    let shift = 0;
+    for(let i=0;i<K;i++){
+      if(sums[i].n > 0){
+        const nr = sums[i].r / sums[i].n;
+        const ng = sums[i].g / sums[i].n;
+        const nb = sums[i].b / sums[i].n;
+        shift += Math.sqrt(dist2Rgb(centroids[i], {r:nr,g:ng,b:nb}));
+        centroids[i].r = nr;
+        centroids[i].g = ng;
+        centroids[i].b = nb;
+      }
+    }
+    return shift;
+  }
+
+  function updateStep(){
+    if(!centroids.length){
+      setStatus('Primero haz el Paso 1 (asignar).');
+      return;
+    }
+    const shift = updateCentroids();
+    lastShift = shift;
+    iter++;
+    updateMetrics();
+    updateProgressHeuristic();
+    setStatus(`Paso 2: centroides actualizados. Δ=${shift.toFixed(2)} (RGB).`);
+    drawScatterAnimated();
+  }
+
+  function inertiaRgb(){
+    if(!centroids.length) return null;
+    let s = 0;
+    for(const p of colorPoints){
+      if(p.c >= 0){
+        s += dist2Rgb(p, centroids[p.c]);
+      }
+    }
+    return Math.round(s);
+  }
+
+  function updateMetrics(){
+    itEl.textContent = iter.toString();
+    const sse = inertiaRgb();
+    if(sse !== null){
+      sseEl.textContent = sse.toLocaleString('es');
+      sseHistory.push(sse);
+    } else {
+      sseEl.textContent = '—';
+    }
+    shiftEl.textContent = (lastShift === null ? '—' : lastShift.toFixed(2));
+    renderPalette();
+    drawSSEChart();
+  }
+
+  function updateProgressHeuristic(){
+    if(lastShift === null){
+      progBar.style.width = '0%';
+      return;
+    }
+    const d = Math.min(1, 1/Math.max(1,lastShift));
+    const itF = Math.min(1, iter / 15);
+    const prog = Math.min(1, 0.7*d + 0.3*itF);
+    progBar.style.width = (prog*100).toFixed(1) + '%';
+  }
+
+  function runOneFullIteration(){
+    assignStep();
+    updateStep();
+  }
+
+  function runAuto(){
+    if(!colorPoints){
+      setStatus('Carga una imagen primero.');
+      return;
+    }
+    if(!centroids.length){
+      initCentroids();
+    }
+    if(autoTimer) clearInterval(autoTimer);
+    const speed = Number(speedSlider.value);
+    let autoIters = 0;
+    autoTimer = setInterval(() => {
+      autoIters++;
+      runOneFullIteration();
+      if (autoIters >= 25) {
+        stopAuto();
+        setStatus('Auto detenido por máximo de 25 iteraciones. Aplica a la imagen si lo deseas.');
+      } else if (lastShift !== null && lastShift < 0.3 && iter >= 6) {
+        stopAuto();
+        setStatus('Auto detenido: cambios muy pequeños en los centroides. Convergencia razonable.');
+      }
+    }, speed);
+    btnStop.disabled = false;
+    setStatus('Modo automático en ejecución...');
+  }
+
+  function stopAuto(){
+    if(autoTimer){
+      clearInterval(autoTimer);
+      autoTimer = null;
+    }
+    btnStop.disabled = true;
+    if(colorPoints) setStatus('Modo automático detenido.');
+  }
+
+  function applyToImage(){
+    if(!colorPoints || !centroids.length){
+      setStatus('Necesitas centroides y asignaciones para aplicar a la imagen.');
+      return;
+    }
+    const outImgData = imgOutCtx.createImageData(imgW,imgH);
+    const d = outImgData.data;
+    for(let i=0;i<colorPoints.length;i++){
+      const p = colorPoints[i];
+      const c = centroids[p.c];
+      const idx = i*4;
+      d[idx]   = Math.round(c.r);
+      d[idx+1] = Math.round(c.g);
+      d[idx+2] = Math.round(c.b);
+      d[idx+3] = 255;
+    }
+    imgOutCtx.putImageData(outImgData,0,0);
+    lastAppliedK = Number(kSlider.value);
+    kCurrentLabel.textContent = lastAppliedK;
+    setStatus('Imagen cuantizada generada con K colores (versión actual). Ahora puedes guardar versión A para comparar.');
+    btnSnapshot.disabled = false;
+  }
+
+  function snapshotVersion(){
+    if(!imgW || !imgH || !lastAppliedK){
+      setStatus('Primero aplica k-means a la imagen para tener una versión actual.');
+      return;
+    }
+    imgACanvas.width = imgW;
+    imgACanvas.height = imgH;
+    imgACtx.clearRect(0,0,imgW,imgH);
+    imgACtx.drawImage(imgOutCanvas,0,0);
+    snapshotK = lastAppliedK;
+    kSnapshotLabel.textContent = snapshotK;
+    setStatus('Versión A guardada con K = ' + snapshotK + '. Cambia K, vuelve a aplicar y compara A vs actual.');
+  }
+
+  function renderPalette(){
+    paletteEl.innerHTML = '';
+    if(!centroids.length) return;
+    for(const c of centroids){
+      const r = Math.round(c.r), g = Math.round(c.g), b = Math.round(c.b);
+      const sw = document.createElement('div');
+      sw.className = 'sw';
+      sw.style.background = `rgb(${r},${g},${b})`;
+      sw.title = `rgb(${r},${g},${b})`;
+      paletteEl.appendChild(sw);
+    }
+  }
+
+  // ========= Gráfica SSE =========
+  function resizeSSE(){
+    const rect = sseCanvas.getBoundingClientRect();
+    const w = Math.max(200, Math.floor(rect.width));
+    const h = Math.max(120, Math.floor(rect.height));
+    sseCanvas.width = w * DPR;
+    sseCanvas.height = h * DPR;
+    sseCanvas.style.width = w + 'px';
+    sseCanvas.style.height = h + 'px';
+    sseCtx.setTransform(DPR,0,0,DPR,0,0);
+    drawSSEChart();
+  }
+
+  function drawSSEChart(){
+    const ctx = sseCtx;
+    const w = sseCanvas.clientWidth || sseCanvas.width / DPR;
+    const h = sseCanvas.clientHeight || sseCanvas.height / DPR;
+    ctx.clearRect(0,0,w,h);
+
+    const grd = ctx.createLinearGradient(0,0,w,h);
+    grd.addColorStop(0,'#030617');
+    grd.addColorStop(1,'#01030c');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0,0,w,h);
+
+    const margin = 32;
+    const innerW = w - 2*margin;
+    const innerH = h - 2*margin;
+
+    ctx.strokeStyle = 'rgba(255,255,255,.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin, h-margin);
+    ctx.lineTo(w-margin, h-margin);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(margin, margin);
+    ctx.lineTo(margin, h-margin);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.font = '11px ui-sans-serif, system-ui';
+    ctx.fillText('Iteraciones', w/2 - 30, h-8);
+    ctx.save();
+    ctx.translate(10, h/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('SSE', -10, 0);
+    ctx.restore();
+
+    if(!sseHistory.length) return;
+
+    const maxSSE = Math.max(...sseHistory);
+    const minSSE = Math.min(...sseHistory);
+    const range = Math.max(1, maxSSE - minSSE);
+    const n = sseHistory.length;
+
+    ctx.beginPath();
+    for(let i=0;i<n;i++){
+      const x = margin + (i/Math.max(1,n-1)) * innerW;
+      const norm = (sseHistory[i]-minSSE)/range;
+      const y = h-margin - norm*innerH;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle = 'rgba(124,92,255,.95)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    for(let i=0;i<n;i++){
+      const x = margin + (i/Math.max(1,n-1)) * innerW;
+      const norm = (sseHistory[i]-minSSE)/range;
+      const y = h-margin - norm*innerH;
+      ctx.beginPath();
+      ctx.arc(x,y,3,0,Math.PI*2);
+      ctx.fillStyle = 'rgba(0,225,214,.9)';
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.font = '10px ui-sans-serif, system-ui';
+    ctx.fillText(maxSSE.toLocaleString('es'), margin+2, margin+10);
+    ctx.fillText(minSSE.toLocaleString('es'), margin+2, h-margin-2);
+  }
+
+  // ========= 3D RGB =========
+  function projectRGB(r,g,b,w,h,rotX,rotY){
+    let x = r/255 - 0.5;
+    let y = g/255 - 0.5;
+    let z = b/255 - 0.5;
+
+    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+    let x1 = x*cosY + z*sinY;
+    let z1 = -x*sinY + z*cosY;
+
+    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+    let y1 = y*cosX - z1*sinX;
+    let z2 = y*sinX + z1*cosX;
+
+    const dist = 1.8;
+    const f = dist / (dist - z2);
+    let px = x1 * f;
+    let py = y1 * f;
+
+    const margin = 28;
+    const innerW = w - 2*margin;
+    const innerH = h - 2*margin;
+    const cx = margin + innerW/2;
+    const cy = margin + innerH/2;
+
+    const sx = cx + px * innerW * 0.9;
+    const sy = cy - py * innerH * 0.9;
+
+    return { x:sx, y:sy, z:z2 };
+  }
+
+  function resizeScatter(){
+    const rect = scatterCanvas.getBoundingClientRect();
+    const w = Math.max(200, Math.floor(rect.width));
+    const h = Math.max(200, Math.floor(rect.height));
+    scatterCanvas.width = w * DPR;
+    scatterCanvas.height = h * DPR;
+    scatterCanvas.style.width = w + 'px';
+    scatterCanvas.style.height = h + 'px';
+    scatterCtx.setTransform(DPR,0,0,DPR,0,0);
+    drawScatter(false);
+  }
+
+  function drawScatter(showHints){
+    const ctx = scatterCtx;
+    const w = scatterCanvas.clientWidth || scatterCanvas.width / DPR;
+    const h = scatterCanvas.clientHeight || scatterCanvas.height / DPR;
+    ctx.clearRect(0,0,w,h);
+
+    const grd = ctx.createLinearGradient(0,0,w,h);
+    grd.addColorStop(0,'#050818');
+    grd.addColorStop(1,'#020410');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0,0,w,h);
+
+    const rotX = Number(rotXSlider.value) * Math.PI / 180;
+    const rotY = Number(rotYSlider.value) * Math.PI / 180;
+
+    const corners = [
+      [0,0,0],[255,0,0],[255,255,0],[0,255,0],
+      [0,0,255],[255,0,255],[255,255,255],[0,255,255]
+    ];
+    const edges = [
+      [0,1],[1,2],[2,3],[3,0],
+      [4,5],[5,6],[6,7],[7,4],
+      [0,4],[1,5],[2,6],[3,7]
+    ];
+    ctx.strokeStyle = 'rgba(255,255,255,.25)';
+    ctx.lineWidth = 1;
+    edges.forEach(([i,j])=>{
+      const a = corners[i], b = corners[j];
+      const pa = projectRGB(a[0],a[1],a[2],w,h,rotX,rotY);
+      const pb = projectRGB(b[0],b[1],b[2],w,h,rotX,rotY);
+      ctx.beginPath();
+      ctx.moveTo(pa.x,pa.y);
+      ctx.lineTo(pb.x,pb.y);
+      ctx.stroke();
+    });
+
+    const origin = projectRGB(0,0,0,w,h,rotX,rotY);
+    const rAxis = projectRGB(255,0,0,w,h,rotX,rotY);
+    const gAxis = projectRGB(0,255,0,w,h,rotX,rotY);
+    const bAxis = projectRGB(0,0,255,w,h,rotX,rotY);
+
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = 'rgba(255,80,80,.9)';
+    ctx.beginPath(); ctx.moveTo(origin.x,origin.y); ctx.lineTo(rAxis.x,rAxis.y); ctx.stroke();
+    ctx.strokeStyle = 'rgba(80,255,80,.9)';
+    ctx.beginPath(); ctx.moveTo(origin.x,origin.y); ctx.lineTo(gAxis.x,gAxis.y); ctx.stroke();
+    ctx.strokeStyle = 'rgba(80,160,255,.9)';
+    ctx.beginPath(); ctx.moveTo(origin.x,origin.y); ctx.lineTo(bAxis.x,bAxis.y); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    ctx.font = '11px ui-sans-serif, system-ui';
+    ctx.fillText('R', rAxis.x+4, rAxis.y);
+    ctx.fillText('G', gAxis.x+4, gAxis.y);
+    ctx.fillText('B', bAxis.x+4, bAxis.y);
+
+    if(!samplePoints || !samplePoints.length) return;
+
+    const projected = samplePoints.map(p=>{
+      const pr = projectRGB(p.r,p.g,p.b,w,h,rotX,rotY);
+      return {screen:pr, p};
+    }).sort((a,b)=>a.screen.z - b.screen.z);
+
+    for(const obj of projected){
+      const sp = obj.screen;
+      const p = obj.p;
+      const color = `rgb(${p.r},${p.g},${p.b})`;
+      ctx.beginPath();
+      ctx.arc(sp.x,sp.y,2.2,0,Math.PI*2);
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 4;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    if(centroids.length){
+      const projectedC = centroids.map((c, idx)=>{
+        const pr = projectRGB(c.r,c.g,c.b,w,h,rotX,rotY);
+        return {screen:pr, c, idx};
+      }).sort((a,b)=>a.screen.z - b.screen.z);
+
+      for(const obj of projectedC){
+        const sp = obj.screen;
+        const c = obj.c;
+        const col = `rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`;
+
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, 9, 0, Math.PI*2);
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.7;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = 'rgba(0,0,0,.8)';
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.rect(sp.x-6, sp.y-6, 12, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.font = '11px ui-sans-serif, system-ui';
+        ctx.fillText('C' + (obj.idx+1), sp.x+8, sp.y-8);
+      }
+    }
+
+    if(showHints){
+      ctx.fillStyle = 'rgba(255,255,255,.8)';
+      ctx.font = '11px ui-sans-serif, system-ui';
+      ctx.fillText('Cubo RGB: cada punto es un color (R,G,B).', 12, 20);
+    }
+  }
+
+  function drawScatterAnimated(){
+    drawScatter(false);
+    const ctx = scatterCtx;
+    const w = scatterCanvas.clientWidth || scatterCanvas.width/DPR;
+    const h = scatterCanvas.clientHeight || scatterCanvas.height/DPR;
+
+    const rotX = Number(rotXSlider.value) * Math.PI / 180;
+    const rotY = Number(rotYSlider.value) * Math.PI / 180;
+
+    let t = 0, max = 14;
+    const id = setInterval(()=>{
+      t++;
+      if(!centroids.length){ clearInterval(id); return; }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0,1 - t/max);
+      for(const c of centroids){
+        const pr = projectRGB(c.r,c.g,c.b,w,h,rotX,rotY);
+        const color = `rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`;
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, 6 + t*0.8, 0, Math.PI*2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.restore();
+      if(t>=max) clearInterval(id);
+    },18);
+  }
+
+  // ========= Rotación automática del cubo =========
+  function startAutoRotation(){
+    if(autoRotTimer) return;
+    autoRotTimer = setInterval(()=>{
+      let y = parseFloat(rotYSlider.value);
+      y += 0.5;
+      if(y > 80) y = -80;
+      rotYSlider.value = y.toFixed(1);
+      drawScatter(false);
+    }, 30);
+  }
+
+  function stopAutoRotation(){
+    if(autoRotTimer){
+      clearInterval(autoRotTimer);
+      autoRotTimer = null;
+    }
+  }
+
+  // ========= Drag para rotar el cubo =========
+  let isDragging = false;
+  let lastX = 0, lastY = 0;
+
+  scatterCanvas.addEventListener('mousedown', e=>{
+    isDragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    // si estaba la rotación automática, la apagamos
+    if(autoRotChk.checked){
+      autoRotChk.checked = false;
+      stopAutoRotation();
+    }
+  });
+
+  window.addEventListener('mouseup', ()=>{ isDragging = false; });
+
+  window.addEventListener('mousemove', e=>{
+    if(!isDragging) return;
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+
+    let rx = parseFloat(rotXSlider.value);
+    let ry = parseFloat(rotYSlider.value);
+
+    ry += dx * 0.4; // horizontal -> gira alrededor del eje vertical
+    rx -= dy * 0.4; // vertical -> inclina arriba/abajo
+
+    // limitamos X para no “voltear” demasiado el cubo
+    rx = Math.max(-80, Math.min(80, rx));
+    // para Y podemos permitir que de la vuelta completa
+    if(ry > 180) ry -= 360;
+    if(ry < -180) ry += 360;
+
+    rotXSlider.value = rx.toFixed(1);
+    rotYSlider.value = ry.toFixed(1);
+    drawScatter(false);
+  });
+
+  // ========= Eventos =========
+  btnLoad.addEventListener('click', loadImageAndExtract);
+  btnReset.addEventListener('click', ()=>{
+    colorPoints = null;
+    samplePoints = [];
+    centroids = [];
+    resetMetrics();
+    enableKmeansControls(false);
+    pxCountEl.textContent = '—';
+    sampleCountEl.textContent = '0';
+    kSnapshotLabel.textContent = '—';
+    scatterCtx.clearRect(0,0,scatterCanvas.width,scatterCanvas.height);
+    imgSrcCtx.clearRect(0,0,imgSrcCanvas.width,imgSrcCanvas.height);
+    imgACtx.clearRect(0,0,imgACanvas.width,imgACanvas.height);
+    imgOutCtx.clearRect(0,0,imgOutCanvas.width,imgOutCanvas.height);
+    stopAuto();
+    stopAutoRotation();
+    autoRotChk.checked = false;
+    setStatus('Reiniciado. Carga una nueva imagen.');
+  });
+
+  btnInit.addEventListener('click', initCentroids);
+  btnAssign.addEventListener('click', assignStep);
+  btnUpdate.addEventListener('click', updateStep);
+  btnAuto.addEventListener('click', runAuto);
+  btnStop.addEventListener('click', stopAuto);
+  btnApply.addEventListener('click', applyToImage);
+  btnSnapshot.addEventListener('click', snapshotVersion);
+
+  maxScatterSlider.addEventListener('input', ()=>{
+    if(colorPoints){
+      generateScatterSample();
+      drawScatter(false);
+    }
+  });
+
+  rotXSlider.addEventListener('input', ()=>drawScatter(false));
+  rotYSlider.addEventListener('input', ()=>drawScatter(false));
+
+  autoRotChk.addEventListener('change', ()=>{
+    if(autoRotChk.checked){
+      startAutoRotation();
+    } else {
+      stopAutoRotation();
+    }
+  });
+
+  window.addEventListener('resize', ()=>{
+    resizeScatter();
+    resizeSSE();
+  });
+
+  // ========= Inicio =========
+  enableKmeansControls(false);
+  setStatus('1) Carga una imagen. 2) Inicializa centroides. 3) Ejecuta k-means en el cubo RGB, observa la SSE y compara versiones.');
+  resizeScatter();
+  resizeSSE();
+</script>
+
+</body>
+</html>
